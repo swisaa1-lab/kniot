@@ -1,0 +1,161 @@
+<!doctype html>
+<!--
+  דף "מצב סופר" (תיבות סימון) שנפתח בתוך טלגרם. יושב ב-GitHub Pages ולא בגוגל, כי בגוגל הדף
+  עטוף במסגרות שגבוהות מהמסך באייפון, והחלק התחתון נחתך. הנתונים עדיין בגיליון: הדף פונה
+  לכתובת ה-Web App של גוגל (?api=1) ומקבל JSON. המפתח האישי מגיע בכתובת: ?t=<מפתח>.
+  עדכון הדף: לערוך כאן, ולהעלות לריפו של GitHub Pages (ראה README).
+-->
+<html dir="rtl" lang="he">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>רשימת קניות</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:var(--tg-theme-bg-color,#f3f5f7);--card:var(--tg-theme-secondary-bg-color,#ffffff);--text:var(--tg-theme-text-color,#111);--hint:var(--tg-theme-hint-color,#7a7f87);--accent:var(--tg-theme-button-color,#2e9e5b);--accent-text:var(--tg-theme-button-text-color,#fff);--line:rgba(127,127,127,.28)}
+*{box-sizing:border-box}
+/* מסגרת בגובה האזור שטלגרם באמת מציגה; רק רשימת המוצרים גוללת */
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}
+body{height:var(--tg-viewport-stable-height,100%);font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-size:18px;-webkit-tap-highlight-color:transparent;display:flex;flex-direction:column}
+header{flex:none;background:var(--bg);padding:12px 16px 6px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.title{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:20px}
+.hint{color:var(--hint);font-size:14px;font-weight:400}
+.icon{border:0;background:transparent;font-size:22px;padding:6px 8px;cursor:pointer}
+.add{flex:none;display:flex;gap:8px;padding:6px 16px 12px}
+.add input{flex:1;min-width:0;font-size:17px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--text);outline:none}
+.add button{font-size:24px;line-height:1;padding:0 18px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-text);cursor:pointer}
+.add button:disabled{opacity:.5}
+ul{list-style:none;margin:0;padding:0 12px 24px;flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.item{display:flex;align-items:center;gap:14px;background:var(--card);margin-bottom:6px;padding:13px 14px;border-radius:14px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:opacity .15s}
+.item:active{opacity:.7}
+.box{width:28px;height:28px;flex:none;border:2px solid var(--hint);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:19px;font-weight:700;transition:background .12s,border-color .12s}
+.item.bought .box{background:var(--accent);border-color:var(--accent)}
+.item.bought .box::after{content:"\2713"}
+.name{flex:1;line-height:1.35;word-break:break-word}
+.mark{flex:none;font-size:20px;margin-inline-start:-4px}
+.item.bought .mark{opacity:.45}
+.item.bought .name{text-decoration:line-through;color:var(--hint)}
+.empty{text-align:center;color:var(--hint);padding:48px 16px;line-height:1.7}
+footer{flex:none;padding:10px 16px calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
+footer button{width:100%;font-size:18px;padding:14px;border:0;border-radius:14px;background:var(--accent);color:var(--accent-text);cursor:pointer}
+footer button:disabled{opacity:.45}
+footer .ghost{background:transparent;color:var(--text);border:1px solid var(--line);margin-top:8px}
+.hidden{display:none}
+#toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,.92);color:#fff;padding:10px 16px;border-radius:12px;font-size:15px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%;text-align:center}
+#toast.show{opacity:1}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:5}
+#overlay.show{display:flex}
+.card{background:var(--card);border-radius:16px;padding:20px;width:100%;max-width:420px}
+.card h3{margin:0 0 10px;font-size:20px}
+.card p{white-space:pre-line;line-height:1.6;margin:0 0 16px;font-size:16px}
+.card button{width:100%;font-size:17px;padding:12px;border:0;border-radius:12px;background:var(--accent);color:var(--accent-text)}
+</style>
+</head>
+<body>
+<header><div class="title"><span id="listName">📋</span><span id="count" class="hint">טוען…</span></div><button id="refresh" class="icon" title="רענון">🔄</button></header>
+<form id="addForm" class="add" autocomplete="off"><input id="addInput" type="text" placeholder="הוסף פריט… למשל: חלב, 2 עגבניות" enterkeyhint="done"><button type="submit" id="addBtn">+</button></form>
+<ul id="list"></ul>
+<footer>
+<div id="finishRow"><button id="finish" disabled>✅ סיימתי קנייה</button></div>
+<div id="confirmRow" class="hidden"><button id="yes">✅ כן, להוריד את המסומנים</button><button id="no" class="ghost">ביטול</button></div>
+</footer>
+<div id="toast"></div>
+<div id="overlay"><div class="card"><h3>🛒 סיכום קנייה</h3><p id="summaryText"></p><button id="closeOverlay">סגור</button></div></div>
+<script>
+// כתובת ה-Web App של הבוט בגוגל (אותה כתובת כמו CONFIG.WEBAPP_URL)
+var API = "https://script.google.com/macros/s/AKfycbw5SRLpUtV-Wrr80R46g2almHeH7vjZp5OCP9u9k5qcB3R6kdrXBCI-OhEJNiyN4lo/exec";
+var TOKEN = new URLSearchParams(location.search).get("t") || "";
+var items = [];
+var listName = "";
+var loaded = false;
+var pending = {};
+var busy = false;
+try { if (window.Telegram && Telegram.WebApp) { Telegram.WebApp.ready(); Telegram.WebApp.expand(); if (Telegram.WebApp.disableVerticalSwipes) Telegram.WebApp.disableVerticalSwipes(); } } catch (e) {}
+function $(id) { return document.getElementById(id); }
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function label(it) { var s = it.name; if (it.qty) s += " · " + it.qty; if (it.note) s += " (" + it.note + ")"; return s; }
+function haptic(kind) { try { Telegram.WebApp.HapticFeedback.impactOccurred(kind || "light"); } catch (e) {} }
+var toastTimer;
+function toast(msg) { var t = $("toast"); t.textContent = msg; t.className = "show"; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.className = ""; }, 2200); }
+function boughtCount() { var n = 0; for (var i = 0; i < items.length; i++) if (items[i].status === "bought") n++; return n; }
+function render() {
+  var html = "";
+  if (loaded && !items.length) html = '<li class="empty">הרשימה ריקה 🎉<br><span class="hint">הוסף פריט למעלה, או כתוב לבוט בטלגרם</span></li>';
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    html += '<li class="item' + (it.status === "bought" ? " bought" : "") + '" data-id="' + esc(it.id) + '"><span class="box"></span>' + (it.mark ? '<span class="mark">' + esc(it.mark) + "</span>" : "") + '<span class="name">' + esc(label(it)) + "</span></li>";
+  }
+  $("list").innerHTML = html;
+  var n = boughtCount();
+  $("listName").textContent = "📋 " + listName;
+  if (loaded) $("count").textContent = items.length ? (items.length + " פריטים" + (n ? " · ✅ " + n : "")) : "";
+  var fb = $("finish");
+  fb.textContent = "✅ סיימתי קנייה" + (n ? " (" + n + ")" : "");
+  fb.disabled = !n || busy;
+}
+// פנייה לגוגל: GET עם הפרמטרים; גוגל מחזירה JSON (דרך הפניה ש-fetch עוקב אחריה)
+function call(action, params, onOk, onFail) {
+  var q = "?api=1&a=" + encodeURIComponent(action) + "&t=" + encodeURIComponent(TOKEN);
+  for (var k in params) q += "&" + k + "=" + encodeURIComponent(params[k]);
+  fetch(API + q, { redirect: "follow" })
+    .then(function (res) { return res.json(); })
+    .then(onOk, onFail);
+}
+function merge(server, list) {
+  if (!server) return;
+  if (list) listName = list;
+  loaded = true;
+  var out = [];
+  for (var i = 0; i < server.length; i++) { var s = server[i]; if (pending[s.id]) s.status = pending[s.id]; out.push(s); }
+  items = out; render();
+}
+function setStatus(id, status) { for (var i = 0; i < items.length; i++) if (items[i].id === id) items[i].status = status; render(); }
+function toggle(id) {
+  var it = null; for (var i = 0; i < items.length; i++) if (items[i].id === id) { it = items[i]; break; }
+  if (!it) return;
+  var prev = it.status, want = prev === "bought" ? "open" : "bought";
+  pending[id] = want; setStatus(id, want); haptic("light");
+  call("toggle", { id: id, b: want === "bought" ? "1" : "0" }, function (r) {
+    if (pending[id] === want) delete pending[id];
+    if (r && r.ok) merge(r.items, r.list);
+    else { setStatus(id, prev); toast(r && r.error === "auth" ? "הקישור לא תקף, פתח מחדש מהבוט" : "לא נשמר, נסה שוב"); }
+  }, function () { if (pending[id] === want) delete pending[id]; setStatus(id, prev); toast("אין חיבור, הסימון לא נשמר"); });
+}
+$("list").addEventListener("click", function (ev) { var el = ev.target; while (el && el !== this && !(el.classList && el.classList.contains("item"))) el = el.parentNode; if (el && el !== this) toggle(el.getAttribute("data-id")); });
+function refresh(silent) {
+  call("get", {}, function (r) {
+    if (r && r.ok) { merge(r.items, r.list); if (!silent) toast("עודכן"); }
+    else if (r && r.error === "auth") { $("count").textContent = ""; $("list").innerHTML = '<li class="empty">הקישור לא תקף<br><span class="hint">פתח את הדף מחדש מהכפתור בבוט</span></li>'; }
+    else if (!silent) toast("לא הצלחתי לרענן");
+  }, function () { if (!silent || !loaded) toast("אין חיבור"); });
+}
+$("refresh").addEventListener("click", function () { refresh(false); });
+setInterval(function () { if (!document.hidden && !busy) refresh(true); }, 25000);
+document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(true); });
+$("addForm").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var inp = $("addInput"), text = inp.value.trim(); if (!text) return;
+  var btn = $("addBtn"); btn.disabled = true; btn.textContent = "…";
+  call("add", { text: text }, function (r) {
+    btn.disabled = false; btn.textContent = "+";
+    if (r && r.ok) { inp.value = ""; merge(r.items, r.list); toast(r.message || "נוסף"); haptic("light"); } else toast("לא נוסף, נסה שוב");
+  }, function () { btn.disabled = false; btn.textContent = "+"; toast("אין חיבור, לא נוסף"); });
+});
+function showFinish(confirming) { $("finishRow").className = confirming ? "hidden" : ""; $("confirmRow").className = confirming ? "" : "hidden"; }
+$("finish").addEventListener("click", function () { showFinish(true); });
+$("no").addEventListener("click", function () { showFinish(false); });
+$("yes").addEventListener("click", function () {
+  var y = $("yes"); busy = true; y.disabled = true; y.textContent = "שומר…";
+  function done() { busy = false; y.disabled = false; y.textContent = "✅ כן, להוריד את המסומנים"; showFinish(false); }
+  call("finish", {}, function (r) {
+    done();
+    if (r && r.ok) { merge(r.items, r.list); if (r.summary) { $("summaryText").textContent = r.summary; $("overlay").className = "show"; haptic("medium"); } else toast(r.message || "אין פריטים מסומנים"); }
+    else toast("לא הצלחתי לסיים, נסה שוב");
+  }, function () { done(); toast("אין חיבור, נסה שוב"); });
+});
+$("closeOverlay").addEventListener("click", function () { $("overlay").className = ""; });
+render();
+refresh(true);
+</script>
+</body>
+</html>
